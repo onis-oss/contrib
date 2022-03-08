@@ -23,7 +23,18 @@ import "context"
 			}
 			return result, {{ if $e.Optional }}MaskNotFound(err){{ else }}err{{ end }}
 		}
+		{{- else if not $.Annotations.GQLSchemaGenerator }}
+		func ({{ $r }} *{{ $n.Name }}) {{ $e.StructField }}(ctx context.Context) ([]*{{ $names.Node }}, error) {
+			result, err := {{ $r }}.Edges.{{ $e.StructField }}OrErr()
+			if IsNotLoaded(err) {
+				result, err = {{ $r }}.Query{{ $e.StructField }}().All(ctx)
+			}
+			return result, err
+		}
 		{{- else if $e.Annotations.EntGQL.RelayConnection }}
+			{{- if not $.Annotations.GQLSchemaGenerator.RelaySpec }}
+				{{ fail "must enable relay specification via the WithRelaySpec option" }}
+			{{- end }}
 			{{- if not $e.Type.Annotations.EntGQL.RelayConnection }}
 				{{ fail (printf "must enable Relay Connection via the entgql.RelayConnection annotation on the %s entity" $e.Type.Name) }}
 			{{- end }}

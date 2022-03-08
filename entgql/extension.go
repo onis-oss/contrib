@@ -91,9 +91,13 @@ func WithSchemaPath(path string) ExtensionOption {
 	}
 }
 
-// GQLConfigAnnotation is the annotation key/name that holds gqlgen
-// configuration if it was provided by the `WithConfigPath` option.
-const GQLConfigAnnotation = "GQLConfig"
+const (
+	// GQLConfigAnnotation is the annotation key/name that holds gqlgen
+	// configuration if it was provided by the `WithConfigPath` option.
+	GQLConfigAnnotation = "GQLConfig"
+	// GQLSchemaGenerator is blah blah
+	GQLSchemaGenerator = "GQLSchemaGenerator"
+)
 
 // WithConfigPath sets the filepath to gqlgen.yml configuration file
 // and injects its parsed version to the global annotations.
@@ -331,6 +335,17 @@ func (e *Extension) isInput(name string) bool {
 func (e *Extension) genSchema() gen.Hook {
 	return func(next gen.Generator) gen.Generator {
 		return gen.GenerateFunc(func(g *gen.Graph) error {
+			if g.Annotations == nil {
+				g.Annotations = gen.Annotations{}
+			}
+			g.Annotations[GQLSchemaGenerator] = struct {
+				RelaySpec bool
+			}{
+				// TODO(giautm): relaySpec enable by default.
+				// Add an option to disable it.
+				RelaySpec: true,
+			}
+
 			if err := next.Generate(g); err != nil {
 				return err
 			}
