@@ -14,13 +14,57 @@ import "context"
 {{ range $n := filterNodes $.Nodes }}
 	{{ $r := $n.Receiver }}
 	{{ range $e := filterEdges $n.Edges }}
-		func ({{ $r }} *{{ $n.Name }}) {{ $e.StructField }}(ctx context.Context) ({{ if not $e.Unique }}[]{{ end }}*{{ $e.Type.Name }}, error) {
+		{{ $names := nodePaginationNames $e.Type -}}
+		{{- if $e.Unique }}
+		func ({{ $r }} *{{ $n.Name }}) {{ $e.StructField }}(ctx context.Context) (*{{ $names.Node }}, error) {
 			result, err := {{ $r }}.Edges.{{ $e.StructField }}OrErr()
 			if IsNotLoaded(err) {
-				result, err = {{ $r }}.Query{{ $e.StructField }}().{{ if $e.Unique }}Only{{ else }}All{{ end }}(ctx)
+				result, err = {{ $r }}.Query{{ $e.StructField }}().Only(ctx)
 			}
-			return result, {{ if and $e.Unique $e.Optional }}MaskNotFound(err){{ else }}err{{ end }}
+			return result, {{ if $e.Optional }}MaskNotFound(err){{ else }}err{{ end }}
 		}
+		{{- else if $e.Annotations.EntGQL.RelayConnection }}
+			{{- if not $e.Type.Annotations.EntGQL.RelayConnection }}
+				{{ fail (printf "must enable Relay Connection via the entgql.RelayConnection annotation on the %s entity" $e.Type.Name) }}
+			{{- end }}
+		func ({{ $r }} *{{ $n.Name }}) {{ $e.StructField }}(
+			ctx context.Context,
+			orderBy *{{ $names.Order }},
+			// where *{{ $names.WhereInput }},
+			after *Cursor,
+			before *Cursor,
+			first *int,
+			last *int,
+		) (*{{ $names.Connection }}, error) {
+			return {{ $r }}.Query{{ $e.StructField }}().
+				Paginate(ctx, after, first, before, last,
+					With{{ $names.Order }}(orderBy),
+					// With{{ $names.Order }}Filter(where.Filter),
+				)
+		}
+		{{- else }}
+		func ({{ $r }} *{{ $n.Name }}) {{ $e.StructField }}(
+			ctx context.Context,
+			orderBy *{{ $names.Order }},
+			// where *{{ $names.WhereInput }},
+			page int,
+			limit int,
+		) ([]*{{ $names.Node }}, error) {
+			return {{ $r }}.Query{{ $e.StructField }}().
+				Limit(limit).Offset(page).
+				Order(func(s *sql.Selector) {
+					if orderBy != nil {
+						c := s.C(orderBy.Field.field)
+						if orderBy.Direction == OrderDirectionAsc {
+							s.OrderBy(sql.Asc(c))
+						} else if orderBy.Direction == OrderDirectionDesc {
+							s.OrderBy(sql.Desc(c))
+						}
+					}
+				}).
+				All(ctx)
+		}
+		{{- end }}
 	{{ end }}
 {{ end }}
 

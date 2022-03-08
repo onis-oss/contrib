@@ -62,7 +62,7 @@ type ComplexityRoot struct {
 		Status   func(childComplexity int) int
 		Strings  func(childComplexity int) int
 		Text     func(childComplexity int) int
-		Todos    func(childComplexity int) int
+		Todos    func(childComplexity int, orderBy *ent.TodoOrder, page int, limit int) int
 		UUIDA    func(childComplexity int) int
 	}
 
@@ -157,7 +157,6 @@ type QueryResolver interface {
 	Todos(ctx context.Context, after *ent.Cursor, first *int, before *ent.Cursor, last *int, orderBy *ent.TodoOrder) (*ent.TodoConnection, error)
 }
 type TodoResolver interface {
-	Children(ctx context.Context, obj *ent.Todo, orderBy *ent.TodoOrder, after *ent.Cursor, before *ent.Cursor, first *int, last *int) (*ent.TodoConnection, error)
 	Category(ctx context.Context, obj *ent.Todo) (*ent.Category, error)
 }
 
@@ -230,7 +229,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		return e.complexity.Category.Todos(childComplexity), true
+		args, err := ec.field_Category_todos_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Category.Todos(childComplexity, args["orderBy"].(*ent.TodoOrder), args["page"].(int), args["limit"].(int)), true
 
 	case "Category.uuidA":
 		if e.complexity.Category.UUIDA == nil {
@@ -863,6 +867,39 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Category_todos_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *ent.TodoOrder
+	if tmp, ok := rawArgs["orderBy"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("orderBy"))
+		arg0, err = ec.unmarshalOTodoOrder2ᚖentgoᚗioᚋcontribᚋentgqlᚋinternalᚋtodopluginᚋentᚐTodoOrder(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["orderBy"] = arg0
+	var arg1 int
+	if tmp, ok := rawArgs["page"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("page"))
+		arg1, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["page"] = arg1
+	var arg2 int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg2, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createTodo_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -1368,9 +1405,16 @@ func (ec *executionContext) _Category_todos(ctx context.Context, field graphql.C
 	}
 
 	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Category_todos_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Todos(ctx)
+		return obj.Todos(ctx, args["orderBy"].(*ent.TodoOrder), args["page"].(int), args["limit"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2617,7 +2661,7 @@ func (ec *executionContext) _Todo_children(ctx context.Context, field graphql.Co
 		Field:      field,
 		Args:       nil,
 		IsMethod:   true,
-		IsResolver: true,
+		IsResolver: false,
 	}
 
 	ctx = graphql.WithFieldContext(ctx, fc)
@@ -2630,7 +2674,7 @@ func (ec *executionContext) _Todo_children(ctx context.Context, field graphql.Co
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Todo().Children(rctx, obj, args["orderBy"].(*ent.TodoOrder), args["after"].(*ent.Cursor), args["before"].(*ent.Cursor), args["first"].(*int), args["last"].(*int))
+		return obj.Children(ctx, args["orderBy"].(*ent.TodoOrder), args["after"].(*ent.Cursor), args["before"].(*ent.Cursor), args["first"].(*int), args["last"].(*int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5696,10 +5740,6 @@ func (ec *executionContext) marshalNTodo2ᚖentgoᚗioᚋcontribᚋentgqlᚋinte
 		return graphql.Null
 	}
 	return ec._Todo(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNTodoConnection2entgoᚗioᚋcontribᚋentgqlᚋinternalᚋtodopluginᚋentᚐTodoConnection(ctx context.Context, sel ast.SelectionSet, v ent.TodoConnection) graphql.Marshaler {
-	return ec._TodoConnection(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNTodoConnection2ᚖentgoᚗioᚋcontribᚋentgqlᚋinternalᚋtodopluginᚋentᚐTodoConnection(ctx context.Context, sel ast.SelectionSet, v *ent.TodoConnection) graphql.Marshaler {

@@ -16,14 +16,32 @@
 
 package ent
 
-import "context"
+import (
+	"context"
 
-func (c *Category) Todos(ctx context.Context) ([]*Todo, error) {
-	result, err := c.Edges.TodosOrErr()
-	if IsNotLoaded(err) {
-		result, err = c.QueryTodos().All(ctx)
-	}
-	return result, err
+	"entgo.io/ent/dialect/sql"
+)
+
+func (c *Category) Todos(
+	ctx context.Context,
+	orderBy *TodoOrder,
+	// where *TodoWhereInput,
+	page int,
+	limit int,
+) ([]*Todo, error) {
+	return c.QueryTodos().
+		Limit(limit).Offset(page).
+		Order(func(s *sql.Selector) {
+			if orderBy != nil {
+				c := s.C(orderBy.Field.field)
+				if orderBy.Direction == OrderDirectionAsc {
+					s.OrderBy(sql.Asc(c))
+				} else if orderBy.Direction == OrderDirectionDesc {
+					s.OrderBy(sql.Desc(c))
+				}
+			}
+		}).
+		All(ctx)
 }
 
 func (t *Todo) Parent(ctx context.Context) (*Todo, error) {
@@ -34,10 +52,18 @@ func (t *Todo) Parent(ctx context.Context) (*Todo, error) {
 	return result, MaskNotFound(err)
 }
 
-func (t *Todo) Children(ctx context.Context) ([]*Todo, error) {
-	result, err := t.Edges.ChildrenOrErr()
-	if IsNotLoaded(err) {
-		result, err = t.QueryChildren().All(ctx)
-	}
-	return result, err
+func (t *Todo) Children(
+	ctx context.Context,
+	orderBy *TodoOrder,
+	// where *TodoWhereInput,
+	after *Cursor,
+	before *Cursor,
+	first *int,
+	last *int,
+) (*TodoConnection, error) {
+	return t.QueryChildren().
+		Paginate(ctx, after, first, before, last,
+			WithTodoOrder(orderBy),
+			// WithTodoOrderFilter(where.Filter),
+		)
 }
