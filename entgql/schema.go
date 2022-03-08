@@ -130,7 +130,7 @@ func (e *schemaGenerator) buildTypes() (map[string]*ast.Definition, error) {
 		defaultInterfaces = append(defaultInterfaces, "Node")
 	}
 	for _, node := range e.nodes {
-		ant, err := decodeAnnotation(node.Annotations)
+		gqlType, ant, err := gqlTypeFromNode(node)
 		if err != nil {
 			return nil, err
 		}
@@ -143,14 +143,13 @@ func (e *schemaGenerator) buildTypes() (map[string]*ast.Definition, error) {
 			return nil, err
 		}
 		typ := &ast.Definition{
-			Name:       node.Name,
+			Name:       gqlType,
 			Kind:       ast.Object,
 			Fields:     fields,
 			Directives: e.buildDirectives(ant.Directives),
 			Interfaces: defaultInterfaces,
 		}
-		if ant.Type != "" {
-			typ.Name = ant.Type
+		if node.Name != gqlType {
 			typ.Directives = append(typ.Directives, goModel(e.entGoType(node.Name)))
 		}
 		if len(ant.Implements) > 0 {
@@ -181,6 +180,24 @@ func (e *schemaGenerator) buildTypes() (map[string]*ast.Definition, error) {
 					return nil, err
 				}
 				insertDefinitions(types, enum)
+			}
+		}
+
+		for _, edge := range node.Edges {
+			ant, err := decodeAnnotation(edge.Annotations)
+			if err != nil {
+				return nil, err
+			}
+			if ant.Skip {
+				continue
+			}
+
+			field, err := e.buildEdge(edge, ant)
+			if err != nil {
+				return nil, err
+			}
+			if field != nil {
+				typ.Fields = append(typ.Fields, field)
 			}
 		}
 
@@ -306,6 +323,66 @@ func (e *schemaGenerator) buildTypeFields(t *gen.Type) (ast.FieldList, error) {
 	return fields, nil
 }
 
+// TODO(giautm): update the template `edge.tmpl` to support arguments.
+// TODO(giautm): update the template `edge.tmpl` to support non-relay pagination.
+func (e *schemaGenerator) buildEdge(edge *gen.Edge, edgeAnt *Annotation) (*ast.FieldDefinition, error) {
+	gqlType, ant, err := gqlTypeFromNode(edge.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	fieldDef := &ast.FieldDefinition{
+		Name:       camel(edge.Name),
+		Directives: e.buildDirectives(edgeAnt.Directives),
+	}
+
+	if edge.Unique {
+		fieldDef.Type = namedType(gqlType, edge.Optional)
+		return fieldDef, nil
+	}
+
+	pagination := paginationNames(gqlType)
+	fieldDef.Arguments = ast.ArgumentDefinitionList{
+		{
+			Name: "orderBy",
+			Type: ast.NamedType(pagination.Order, nil),
+		},
+	}
+
+	if edgeAnt.RelayConnection {
+		if !e.relaySpec {
+			return nil, ErrRelaySpecDisabled
+		}
+		if !ant.RelayConnection {
+			return nil, fmt.Errorf("entgql: must enable Relay Connection via the entgql.RelayConnection annotation on the %s entity", edge.Type.Name)
+		}
+
+		fieldDef.Type = ast.NonNullNamedType(pagination.Connection, nil)
+		fieldDef.Arguments = append(fieldDef.Arguments, ast.ArgumentDefinitionList{
+			{Name: "after", Type: ast.NamedType(RelayCursor, nil)},
+			{Name: "before", Type: ast.NamedType(RelayCursor, nil)},
+			{Name: "first", Type: ast.NamedType("Int", nil)},
+			{Name: "last", Type: ast.NamedType("Int", nil)},
+		}...)
+		return fieldDef, nil
+	}
+
+	fieldDef.Type = listNamedType(gqlType, edge.Optional)
+	fieldDef.Arguments = append(fieldDef.Arguments, ast.ArgumentDefinitionList{
+		{
+			Name:         "page",
+			Type:         ast.NonNullNamedType("Int", nil),
+			DefaultValue: &ast.Value{Kind: ast.IntValue, Raw: "1"},
+		},
+		{
+			Name:         "limit",
+			Type:         ast.NonNullNamedType("Int", nil),
+			DefaultValue: &ast.Value{Kind: ast.IntValue, Raw: "20"},
+		},
+	}...)
+	return fieldDef, nil
+}
+
 func (e *schemaGenerator) typeField(f *gen.Field, isID bool) ([]*ast.FieldDefinition, error) {
 	ant, err := decodeAnnotation(f.Annotations)
 	if err != nil {
@@ -387,7 +464,7 @@ func (e *schemaGenerator) genModels() (map[string]string, error) {
 		models[RelayCursor] = e.entGoType(RelayCursor)
 	}
 	for _, node := range e.nodes {
-		ant, err := decodeAnnotation(node.Annotations)
+		gqlType, ant, err := gqlTypeFromNode(node)
 		if err != nil {
 			return nil, err
 		}
@@ -395,11 +472,7 @@ func (e *schemaGenerator) genModels() (map[string]string, error) {
 			continue
 		}
 
-		name := node.Name
-		if ant.Type != "" {
-			name = ant.Type
-		}
-		models[name] = e.entGoType(node.Name)
+		models[gqlType] = e.entGoType(node.Name)
 
 		var hasOrderBy bool
 		for _, field := range node.Fields {

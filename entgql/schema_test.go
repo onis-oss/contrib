@@ -45,6 +45,7 @@ func TestEntGQL_buildTypes(t *testing.T) {
 	duration: Duration!
 	count: Uint64! @deprecated(reason: "We don't use this field anymore")
 	strings: [String!]
+	todos(orderBy: TodoOrder, page: Int! = 1, limit: Int! = 20): [Todo!]
 }
 """
 CategoryStatus is enum for the field status
@@ -83,6 +84,8 @@ type Todo {
 	status: Status!
 	priority: Int!
 	text: String!
+	parent: Todo
+	children(orderBy: TodoOrder, page: Int! = 1, limit: Int! = 20): [Todo!]
 }
 """
 VisibilityStatus is enum for the field visibility_status
@@ -114,6 +117,7 @@ func TestEntGQL_buildTypes_todoplugin_relay(t *testing.T) {
 	duration: Duration!
 	count: Uint64! @deprecated(reason: "We don't use this field anymore")
 	strings: [String!]
+	todos(orderBy: TodoOrder, page: Int! = 1, limit: Int! = 20): [Todo!]
 }
 """
 A connection to a list of items.
@@ -214,6 +218,8 @@ type Todo implements Node {
 	status: Status!
 	priority: Int!
 	text: String!
+	parent: Todo
+	children(orderBy: TodoOrder, after: Cursor, before: Cursor, first: Int, last: Int): TodoConnection!
 }
 """
 A connection to a list of items.
@@ -634,11 +640,21 @@ func createGraph(relayConnection bool) *gen.Graph {
 }
 
 func disableRelayConnection(g *gen.Graph) {
-	for _, n := range g.Nodes {
-		if ant, ok := n.Annotations[annotationName]; ok {
+	disable := func(a gen.Annotations) {
+		if ant, ok := a[annotationName]; ok {
 			if m, ok := ant.(map[string]interface{}); ok {
 				m["RelayConnection"] = false
 			}
+		}
+	}
+
+	for _, n := range g.Nodes {
+		disable(n.Annotations)
+		for _, f := range n.Fields {
+			disable(f.Annotations)
+		}
+		for _, e := range n.Edges {
+			disable(e.Annotations)
 		}
 	}
 }

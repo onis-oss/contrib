@@ -21,6 +21,7 @@ import (
 	"context"
 
 	"entgo.io/contrib/entgql/internal/todoplugin/ent"
+	"entgo.io/contrib/entgql/internal/todoplugin/ent/todo"
 )
 
 func (r *masterUserResolver) Age(ctx context.Context, obj *ent.User) (float64, error) {
@@ -29,6 +30,15 @@ func (r *masterUserResolver) Age(ctx context.Context, obj *ent.User) (float64, e
 
 func (r *masterUserResolver) Amount(ctx context.Context, obj *ent.User) (float64, error) {
 	return float64(obj.Amount), nil
+}
+
+func (r *todoResolver) Children(ctx context.Context, obj *ent.Todo, orderBy *ent.TodoOrder, after *ent.Cursor, before *ent.Cursor, first *int, last *int) (*ent.TodoConnection, error) {
+	// TODO(giautm): auto-generate this method.
+	return r.client.Todo.Query().
+		Where(todo.HasParentWith(todo.ID(obj.ID))).
+		Paginate(ctx, after, first, before, last,
+			ent.WithTodoOrder(orderBy),
+		)
 }
 
 // MasterUser returns MasterUserResolver implementation.

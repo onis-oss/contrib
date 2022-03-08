@@ -205,26 +205,39 @@ type PaginationNames struct {
 	Node       string
 	Order      string
 	OrderField string
+	WhereInput string
 }
 
-// nodePaginationNames returns the names of the pagination types for the node.
-func nodePaginationNames(t *gen.Type) (*PaginationNames, error) {
-	node := t.Name
-	ant, err := decodeAnnotation(t.Annotations)
-	if err != nil {
-		return nil, err
-	}
-	if ant.Type != "" {
-		node = ant.Type
-	}
-
+func paginationNames(node string) *PaginationNames {
 	return &PaginationNames{
 		Connection: fmt.Sprintf("%sConnection", node),
 		Edge:       fmt.Sprintf("%sEdge", node),
 		Node:       node,
 		Order:      fmt.Sprintf("%sOrder", node),
 		OrderField: fmt.Sprintf("%sOrderField", node),
-	}, nil
+		WhereInput: fmt.Sprintf("%sWhereInput", node),
+	}
+}
+
+func gqlTypeFromNode(t *gen.Type) (gqlType string, ant *Annotation, err error) {
+	if ant, err = decodeAnnotation(t.Annotations); err != nil {
+		return
+	}
+	gqlType = t.Name
+	if ant.Type != "" {
+		gqlType = ant.Type
+	}
+	return
+}
+
+// nodePaginationNames returns the names of the pagination types for the node.
+func nodePaginationNames(t *gen.Type) (*PaginationNames, error) {
+	node, _, err := gqlTypeFromNode(t)
+	if err != nil {
+		return nil, err
+	}
+
+	return paginationNames(node), nil
 }
 
 // removeOldAssets removes files that were generated before v0.1.0.
