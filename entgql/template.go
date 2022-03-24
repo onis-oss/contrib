@@ -71,6 +71,7 @@ var (
 		"filterNodes":         filterNodes,
 		"findIDType":          findIDType,
 		"nodePaginationNames": nodePaginationNames,
+		"skipFlag":            skipFlagFromString,
 	}
 
 	//go:embed template/*
@@ -136,7 +137,7 @@ func fieldCollections(edges []*gen.Edge) (map[string]fieldCollection, error) {
 }
 
 // filterNodes filters out nodes that should not be included in the GraphQL schema.
-func filterNodes(nodes []*gen.Type) ([]*gen.Type, error) {
+func filterNodes(nodes []*gen.Type, skip SkipFlag) ([]*gen.Type, error) {
 	var filteredNodes []*gen.Type
 	for _, n := range nodes {
 		ant := &Annotation{}
@@ -144,7 +145,7 @@ func filterNodes(nodes []*gen.Type) ([]*gen.Type, error) {
 			if err := ant.Decode(n.Annotations[ant.Name()]); err != nil {
 				return nil, err
 			}
-			if ant.Skip {
+			if ant.Skip.Has(skip) {
 				continue
 			}
 		}
@@ -154,7 +155,7 @@ func filterNodes(nodes []*gen.Type) ([]*gen.Type, error) {
 }
 
 // filterEdges filters out edges that should not be included in the GraphQL schema.
-func filterEdges(edges []*gen.Edge) ([]*gen.Edge, error) {
+func filterEdges(edges []*gen.Edge, skip SkipFlag) ([]*gen.Edge, error) {
 	var filteredEdges []*gen.Edge
 	for _, e := range edges {
 		ant := &Annotation{}
@@ -162,7 +163,7 @@ func filterEdges(edges []*gen.Edge) ([]*gen.Edge, error) {
 			if err := ant.Decode(e.Annotations[ant.Name()]); err != nil {
 				return nil, err
 			}
-			if ant.Skip {
+			if ant.Skip.Has(skip) {
 				continue
 			}
 		}
@@ -171,7 +172,7 @@ func filterEdges(edges []*gen.Edge) ([]*gen.Edge, error) {
 			if err := ant.Decode(e.Type.Annotations[ant.Name()]); err != nil {
 				return nil, err
 			}
-			if ant.Skip {
+			if ant.Skip.Has(skip) {
 				continue
 			}
 		}
@@ -181,7 +182,7 @@ func filterEdges(edges []*gen.Edge) ([]*gen.Edge, error) {
 }
 
 // filterFields filters out fields that should not be included in the GraphQL schema.
-func filterFields(fields []*gen.Field) ([]*gen.Field, error) {
+func filterFields(fields []*gen.Field, skip SkipFlag) ([]*gen.Field, error) {
 	var filteredFields []*gen.Field
 	for _, f := range fields {
 		ant := &Annotation{}
@@ -189,7 +190,7 @@ func filterFields(fields []*gen.Field) ([]*gen.Field, error) {
 			if err := ant.Decode(f.Annotations[ant.Name()]); err != nil {
 				return nil, err
 			}
-			if ant.Skip {
+			if ant.Skip.Has(skip) {
 				continue
 			}
 		}

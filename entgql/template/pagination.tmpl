@@ -17,7 +17,7 @@ in the LICENSE file in the root directory of this source tree.
 	{{ fail "pagination requires field collection" }}
 {{- end }}
 
-{{ $gqlNodes := filterNodes $.Nodes }}
+{{ $gqlNodes := filterNodes $.Nodes (skipFlag "type") }}
 {{ $idType := findIDType $gqlNodes $.IDType }}
 
 import (
@@ -218,7 +218,7 @@ const (
 
 {{ range $node := $gqlNodes -}}
 {{ $orderFields := list -}}
-{{- range $f := append (filterFields $node.Fields) $node.ID }}
+{{- range $f := append (filterFields $node.Fields (skipFlag "type")) $node.ID }}
 	{{- if $annotation := $f.Annotations.EntGQL }}
 		{{- if $annotation.OrderField }}
 			{{- if not $f.Type.Comparable }}
