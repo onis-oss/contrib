@@ -130,7 +130,7 @@ func Type(name string) Annotation {
 
 // Skip returns a skip annotation.
 func Skip(flags ...SkipFlag) Annotation {
-	if flags == nil || len(flags) == 0 {
+	if len(flags) == 0 {
 		return Annotation{Skip: SkipFlagAll}
 	}
 
